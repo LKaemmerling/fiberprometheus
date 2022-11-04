@@ -178,6 +178,10 @@ func (ps *FiberPrometheus) RegisterAtWithOpts(app *fiber.App, opts RegisterOpts,
 	}
 	ps.defaultURL = opts.URL
 	app.Get(ps.defaultURL, func(ctx *fiber.Ctx) error {
+		reqIP := ctx.IP()
+		if len(reqIP) == 0 {
+			reqIP = ctx.Context().RemoteIP().String()
+		}
 		for _, ip := range opts.WhitelistedIPs {
 			if strings.ToLower(ip) == strings.ToLower(ctx.IP()) {
 				err := adaptor.HTTPHandler(promhttp.Handler())(ctx)
