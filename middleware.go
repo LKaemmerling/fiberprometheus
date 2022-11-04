@@ -23,6 +23,7 @@ package fiberprometheus
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/adaptor/v2"
@@ -139,7 +140,7 @@ func NewWith(serviceName, namespace, subsystem string) *FiberPrometheus {
 //
 // For e.g. namespace = "my_app", subsystem = "http" and labels = map[string]string{"key1": "value1", "key2":"value2"}
 // then then metrics would become
-// `my_app_http_requests_total{...,key1= "value1", key2= "value2" }``
+// `my_app_http_requests_total{...,key1= "value1", key2= "value2" }“
 func NewWithLabels(labels map[string]string, namespace, subsystem string) *FiberPrometheus {
 	return create(prometheus.DefaultRegisterer, "", namespace, subsystem, labels)
 }
@@ -151,7 +152,7 @@ func NewWithLabels(labels map[string]string, namespace, subsystem string) *Fiber
 //
 // For e.g. namespace = "my_app", subsystem = "http" and labels = map[string]string{"key1": "value1", "key2":"value2"}
 // then then metrics would become
-// `my_app_http_requests_total{...,key1= "value1", key2= "value2" }``
+// `my_app_http_requests_total{...,key1= "value1", key2= "value2" }“
 func NewWithRegistry(registry prometheus.Registerer, serviceName, namespace, subsystem string, labels map[string]string) *FiberPrometheus {
 	return create(registry, serviceName, namespace, subsystem, labels)
 }
@@ -162,6 +163,32 @@ func (ps *FiberPrometheus) RegisterAt(app *fiber.App, url string, handlers ...fi
 
 	h := append(handlers, adaptor.HTTPHandler(promhttp.Handler()))
 	app.Get(ps.defaultURL, h...)
+}
+
+type RegisterOpts struct {
+	URL            string
+	WhitelistedIPs []string
+}
+
+// RegisterAtWithOpts will register the prometheus handler at a given URL
+func (ps *FiberPrometheus) RegisterAtWithOpts(app *fiber.App, opts RegisterOpts, handlers ...fiber.Handler) {
+	if len(opts.WhitelistedIPs) == 0 {
+		ps.RegisterAt(app, opts.URL, handlers...)
+		return
+	}
+	ps.defaultURL = opts.URL
+	app.Get(ps.defaultURL, func(ctx *fiber.Ctx) error {
+		for _, ip := range opts.WhitelistedIPs {
+			if strings.ToLower(ip) == strings.ToLower(ctx.IP()) {
+				err := adaptor.HTTPHandler(promhttp.Handler())(ctx)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		ctx.Status(404)
+		return nil
+	})
 }
 
 // Middleware is the actual default middleware implementation
