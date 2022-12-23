@@ -190,7 +190,7 @@ func (ps *FiberPrometheus) RegisterAtWithOpts(app *fiber.App, opts RegisterOpts,
 				}
 			}
 		}
-		ctx.Status(404)
+		ctx.Status(200)
 		ctx.WriteString(reqIP)
 		return nil
 	})
